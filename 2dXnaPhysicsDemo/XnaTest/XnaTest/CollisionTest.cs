@@ -7,19 +7,28 @@ using FarseerPhysics.SamplesFramework;
 using FarseerPhysics.Common;
 using FarseerPhysics.Collision.Shapes;
 using System.Collections.Generic;
+using XnaTest.Controller;
+using Microsoft.Xna.Framework.Input;
+using System;
 
 namespace XnaTest
-{
+{ 
     internal class CollisionTest : PhysicsGameScreen, IDemoScreen
     {
         private Border _border;
         private Body _rectangle;
+        private Body _plankBody;
         private Sprite _rectangleSprite;
         private Texture2D background;
         private AnimatedSprite characterSprite;
         private List<Body> _bridgeBodiesL;
         private List<Body> _bridgeBodiesR;
         private Sprite _bridgeBox;
+
+        private CharacterController plankPosition;
+        private PolygonShape shape;
+        private Vertices box;
+        private Sprite _plankBodySprite;
 
 
         #region IDemoScreen Members
@@ -60,33 +69,55 @@ namespace XnaTest
         public override void LoadContent()
         {
             base.LoadContent();
-
+            
             background = ScreenManager.Content.Load<Texture2D>("background");
             characterSprite = new AnimatedSprite(ScreenManager.Content.Load<Texture2D>("character"), 4, 4);
 
-            World.Gravity = new Vector2(0, 20f);
+            World.Gravity = new Vector2(0, 100f);
 
             _border = new Border(World, this, ScreenManager.GraphicsDevice.Viewport);
 
-            _rectangle = BodyFactory.CreateRectangle(World, characterSprite.Width, characterSprite.Height, 10f);
+            _rectangle = BodyFactory.CreateRectangle(World, characterSprite.Width, characterSprite.Height, 0.1f);
             _rectangle.Position = new Vector2(0, -50);
             _rectangle.BodyType = BodyType.Dynamic;
 
-            SetUserAgent(_rectangle, 5f, 1f);
+            //SetUserAgent(_rectangle, 5f, 1f);
 
             // create sprite based on body
             _rectangleSprite = new Sprite(ScreenManager.Assets.TextureFromShape(_rectangle.FixtureList[0].Shape,
                                                                                 MaterialType.Squares,
                                                                                 Color.Orange, 1f));
-            LoadObstacles();
+            
+            plankPosition = new KeyboardController();
+            base.EnableCameraControl = false;
+         
+            //LoadStaticObstacles();
+            LoadDynamicObstacles();
+            
+        }
+        
+        private void LoadDynamicObstacles()
+        {
+            _plankBody = BodyFactory.CreateRectangle(World, 300, 10, 10f);
+            _plankBody.BodyType = BodyType.Dynamic;
+            UpdateDynamicObstacles();
+            
+            _plankBodySprite = new Sprite(ScreenManager.Assets.TextureFromShape(_plankBody.FixtureList[0].Shape,
+                                                                                MaterialType.Squares,
+                                                                                Color.Orange, 1f));
         }
 
-        private void LoadObstacles()
+        private void UpdateDynamicObstacles()
         {
-            Vertices box = PolygonTools.CreateRectangle(1f, 10f);
-            PolygonShape shape = new PolygonShape(box, 30);
-            _bridgeBox =
-               new Sprite(ScreenManager.Assets.TextureFromShape(shape, MaterialType.Dots, Color.SandyBrown, 1f));
+            _plankBody.Position = plankPosition.getLeftHandPosition();
+            _plankBody.Rotation = (float)Math.Atan(1.0f*(plankPosition.getLeftHandPosition().Y - plankPosition.getRightHandPosition().Y) / (plankPosition.getRightHandPosition().X - plankPosition.getLeftHandPosition().X));
+        }
+
+        private void LoadStaticObstacles()
+        {
+            box = PolygonTools.CreateRectangle(1f, 10f);
+            shape = new PolygonShape(box, 30);
+            _bridgeBox = new Sprite(ScreenManager.Assets.TextureFromShape(shape, MaterialType.Dots, Color.SandyBrown, 1f));
 
             Path bridgePathL = new Path();
             bridgePathL.Add(new Vector2(-400, -50));
@@ -128,18 +159,41 @@ namespace XnaTest
 
         }
 
+
+        //private void updateDynamicPathPosition()
+        //{
+        //    dynamicBridgePath = new Path();
+        //    dynamicBridgePath.Add(character.getLeftHandPosition());
+        //    dynamicBridgePath.Add(character.getRightHandPosition());
+        //    dynamicBridgePath.Closed = false;
+
+        //    _dynamicBridgeBodies = PathManager.EvenlyDistributeShapesAlongPath(World, dynamicBridgePath, shape,
+        //                                                                BodyType.Dynamic, 15);
+
+
+        //    //Attach the first and last fixtures to the world
+        //    JointFactory.CreateFixedRevoluteJoint(World, _dynamicBridgeBodies[0], new Vector2(0f, -0.5f),
+        //                                          _dynamicBridgeBodies[0].Position);
+        //    JointFactory.CreateFixedRevoluteJoint(World, _dynamicBridgeBodies[_dynamicBridgeBodies.Count - 1], new Vector2(0, 0.5f),
+        //                                          _dynamicBridgeBodies[_dynamicBridgeBodies.Count - 1].Position);
+
+        //    PathManager.AttachBodiesWithRevoluteJoint(World, _dynamicBridgeBodies, new Vector2(0f, -0.5f),
+        //                                              new Vector2(0f, 0.5f),
+        //                                              false, true);
+        //}
+
         public override void Draw(GameTime gameTime)
         {
             
             ScreenManager.SpriteBatch.Begin(0, null, null, null, null, null, Camera.View);
             ScreenManager.SpriteBatch.Draw(background, new Rectangle(-ScreenManager.GraphicsDevice.Viewport.Width / 2, -ScreenManager.GraphicsDevice.Viewport.Height / 2, ScreenManager.GraphicsDevice.Viewport.Width, ScreenManager.GraphicsDevice.Viewport.Height), Color.Red);
             // otkomentiraj ovo za gledat kako izgleda model
-            //            ScreenManager.SpriteBatch.Draw(_rectangleSprite.Texture, ConvertUnits.ToDisplayUnits(_rectangle.Position),
-            //                               null,
-            //                               Color.White, _rectangle.Rotation, _rectangleSprite.Origin, 1f,
-            //                               SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.Draw(_rectangleSprite.Texture, ConvertUnits.ToDisplayUnits(_rectangle.Position),
+                               null,
+                               Color.White, _rectangle.Rotation, _rectangleSprite.Origin, 1f,
+                               SpriteEffects.None, 0f);
 
-            characterSprite.Draw(ScreenManager.SpriteBatch, new Vector2(_rectangle.Position.X-characterSprite.Width/2,_rectangle.Position.Y-characterSprite.Height/2));
+            //characterSprite.Draw(ScreenManager.SpriteBatch, new Vector2(_rectangle.Position.X-characterSprite.Width/2,_rectangle.Position.Y-characterSprite.Height/2));
 
             ScreenManager.SpriteBatch.DrawString(ScreenManager.Content.Load<SpriteFont>("Font"), "width, height: " + _rectangle.Position.X +" "+ _rectangle.Position.Y, new Vector2(0, 130), Color.Black);
 
@@ -159,6 +213,12 @@ namespace XnaTest
             //                                   SpriteEffects.None, 0f);
             //}
 
+            ScreenManager.SpriteBatch.Draw(_plankBodySprite.Texture, ConvertUnits.ToDisplayUnits(_plankBody.Position),
+                               null,
+                               Color.White, _plankBody.Rotation, _plankBodySprite.Origin, 1f,
+                               SpriteEffects.None, 0f);
+         
+
             ScreenManager.SpriteBatch.End();
             _border.Draw();
 
@@ -167,8 +227,12 @@ namespace XnaTest
 
          public override void Update(GameTime gameTime, bool otherScreenHasFocus, bool coveredByOtherScreen)
         {
-            characterSprite.Update();
             base.Update(gameTime, otherScreenHasFocus, coveredByOtherScreen);
+            characterSprite.Update();
+            plankPosition.HandleInput(gameTime);
+            UpdateDynamicObstacles();
+            //updateDynamicPathPosition();
+            
         }
     }
 }
