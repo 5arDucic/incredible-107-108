@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using XnaTest.Controller;
 using Microsoft.Xna.Framework.Input;
 using System;
+using FarseerPhysics.Dynamics.Joints;
 
 namespace XnaTest
 { 
@@ -25,10 +26,13 @@ namespace XnaTest
         private List<Body> _bridgeBodiesR;
         private Sprite _bridgeBox;
 
+        private FixedMouseJoint _fixedMouseJoint;
+
         private CharacterController plankPosition;
         private PolygonShape shape;
         private Vertices box;
         private Sprite _plankBodySprite;
+        private Texture2D circleTexture;
 
 
         #region IDemoScreen Members
@@ -73,13 +77,15 @@ namespace XnaTest
             background = ScreenManager.Content.Load<Texture2D>("background");
             characterSprite = new AnimatedSprite(ScreenManager.Content.Load<Texture2D>("character"), 4, 4);
 
-            World.Gravity = new Vector2(0, 100f);
+            World.Gravity = new Vector2(0, 10f);
 
             _border = new Border(World, this, ScreenManager.GraphicsDevice.Viewport);
 
-            _rectangle = BodyFactory.CreateRectangle(World, characterSprite.Width, characterSprite.Height, 0.1f);
+            _rectangle = BodyFactory.CreateCircle(World, 20, 1.0f);
             _rectangle.Position = new Vector2(0, -50);
             _rectangle.BodyType = BodyType.Dynamic;
+            //_rectangle.Restitution = 1.0f;
+            //_rectangle.IsBullet = true;
 
             //SetUserAgent(_rectangle, 5f, 1f);
 
@@ -93,24 +99,77 @@ namespace XnaTest
          
             //LoadStaticObstacles();
             LoadDynamicObstacles();
+
+            circleTexture = CreateCircle(10);
             
+        }
+
+        public Texture2D CreateCircle(int radius)
+        {
+            int outerRadius = radius * 2 + 2; // So circle doesn't go out of bounds
+            Texture2D texture = new Texture2D(ScreenManager.GraphicsDevice, outerRadius, outerRadius);
+
+            Color[] data = new Color[outerRadius * outerRadius];
+
+            // Colour the entire texture transparent first.
+            for (int i = 0; i < data.Length; i++)
+                data[i] = Color.Transparent;
+
+            // Work out the minimum step necessary using trigonometry + sine approximation.
+            double angleStep = 1f / radius;
+
+            for (double angle = 0; angle < Math.PI * 2; angle += angleStep)
+            {
+                // Use the parametric definition of a circle: http://en.wikipedia.org/wiki/Circle#Cartesian_coordinates
+                int x = (int)Math.Round(radius + radius * Math.Cos(angle));
+                int y = (int)Math.Round(radius + radius * Math.Sin(angle));
+
+                data[y * outerRadius + x + 1] = Color.White;
+            }
+
+            texture.SetData(data);
+            return texture;
         }
         
         private void LoadDynamicObstacles()
         {
-            _plankBody = BodyFactory.CreateRectangle(World, 300, 10, 10f);
+            _plankBody = BodyFactory.CreateRectangle(World, 300, 10, 1f);
             _plankBody.BodyType = BodyType.Dynamic;
-            UpdateDynamicObstacles();
+            _plankBody.Restitution = 1f;
+           
             
             _plankBodySprite = new Sprite(ScreenManager.Assets.TextureFromShape(_plankBody.FixtureList[0].Shape,
                                                                                 MaterialType.Squares,
                                                                                 Color.Orange, 1f));
+
+            _fixedMouseJoint = new FixedMouseJoint(_plankBody, plankPosition.getLeftHandPosition());
+
+            _fixedMouseJoint.MaxForce = 1000.0f * _plankBody.Mass;
+            World.AddJoint(_fixedMouseJoint);
+            _plankBody.Awake = true;
+
+            UpdateDynamicObstacles();
         }
 
         private void UpdateDynamicObstacles()
         {
-            _plankBody.Position = plankPosition.getLeftHandPosition();
-            _plankBody.Rotation = (float)Math.Atan(1.0f*(plankPosition.getLeftHandPosition().Y - plankPosition.getRightHandPosition().Y) / (plankPosition.getRightHandPosition().X - plankPosition.getLeftHandPosition().X));
+   
+            //World.AddJoint(_fixedMouseJoint);
+            _fixedMouseJoint.WorldAnchorB = plankPosition.getLeftHandPosition();
+            
+
+            //Fixture savedFixture = World.TestPoint(plankPosition.getLeftHandPosition());
+            //if (savedFixture != null)
+            //{
+            //    Body body = savedFixture.Body;
+            //    _fixedMouseJoint = new FixedMouseJoint(body, plankPosition.getLeftHandPosition());
+            //    _fixedMouseJoint.MaxForce = 1000.0f * body.Mass;
+            //    World.AddJoint(_fixedMouseJoint);
+            //    body.Awake = true;
+            //}
+
+            //_plankBody.Position = plankPosition.getLeftHandPosition();
+           // _plankBody.Rotation = (float)Math.Atan(1.0f*(plankPosition.getLeftHandPosition().Y - plankPosition.getRightHandPosition().Y) / (plankPosition.getRightHandPosition().X - plankPosition.getLeftHandPosition().X));
         }
 
         private void LoadStaticObstacles()
@@ -196,6 +255,9 @@ namespace XnaTest
             //characterSprite.Draw(ScreenManager.SpriteBatch, new Vector2(_rectangle.Position.X-characterSprite.Width/2,_rectangle.Position.Y-characterSprite.Height/2));
 
             ScreenManager.SpriteBatch.DrawString(ScreenManager.Content.Load<SpriteFont>("Font"), "width, height: " + _rectangle.Position.X +" "+ _rectangle.Position.Y, new Vector2(0, 130), Color.Black);
+
+            ScreenManager.SpriteBatch.Draw(circleTexture, plankPosition.getLeftHandPosition(), Color.Black);
+
 
             // otkomentiraj ovo za gledat kako izgleda path sisa
             //for (int i = 0; i < _bridgeBodiesL.Count; ++i)
